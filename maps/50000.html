@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html>
+<head>
+<!--
+This webpage is for my personal use only. It is not a public document.
+It gathers Ordnance Surcvey copyright, but publicly available image data from "streetmap.co.uk" and presents it in a no-frills form.
+For full functionality, visit https://streetmap.co.uk
+Should any third party belive this web page is infringing a copyright, please contact me at nickwillder @ gmail com and request removal.
+Thanks. Nick
+-->
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="googlebot" content="noindex, nofollow, noarchive">
+<meta name="bingbot" content="noindex, nofollow, noarchive">
+<meta name="source" content="Credit: Streetmap EU Ltd and Ordnance Survey">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1:50000 Map Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+<style>
+    /* Global style for the body and overall layout */
+    body {
+        font-family: 'Inter', sans-serif;
+        display: flex;
+        flex-direction: column; /* Arrange controls and map vertically */
+        justify-content: center; /* Center content vertically */
+        align-items: center; /* Center content horizontally */
+        min-height: 100vh;
+        background-color: #f0f2f5; /* Light gray background */
+        margin: 0;
+        padding: 0px; /* Adjusted from 20px */
+        box-sizing: border-box;
+        font-size: 0; /* Important for removing vertical gaps between image tiles */
+    }
+
+    /* Controls Container Styling */
+    #controlsContainer {
+        background-color: #ffffff;
+        padding: 25px 25px 0;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        max-width: 450px;
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 16px;
+        margin-bottom: 20px;
+    }
+
+    #controlsContainer table {
+        border-collapse: separate;
+        width: 100%;
+        margin-bottom: 0; /* Ensure no extra space from table margin */
+    }
+
+    #controlsContainer td {
+        padding: 10px 0; /* Default padding for input rows */
+        vertical-align: middle;
+    }
+
+    #controlsContainer td:first-child {
+        text-align: right;
+        padding-right: 15px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    /* Specific padding for button and message rows */
+    #controlsContainer td.button-row-cell,
+    #controlsContainer td.message-row-cell {
+        padding: 0; /* Remove padding for these specific cells */
+    }
+
+    /* Input Fields Styling */
+    .input-field {
+        width: 80px;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-family: 'Inter', monospace;
+        font-weight: bold;
+        color: #1f2937;
+        text-align: center;
+        font-size: 18px;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-sizing: border-box;
+    }
+
+    .input-field:focus {
+        outline: none;
+        border-color: #40E0D0;
+        box-shadow: 0 0 0 3px rgba(64, 224, 208, 0.3);
+    }
+
+    /* Button Styling */
+    #generateButton {
+        width: 100%;
+        padding: 12px 20px;
+        margin-top: 20px;
+        margin-bottom: 10px;
+        background-color: #08b8e8; /* Updated color */
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 0.2s, transform 0.1s;
+        box-shadow: 0 4px 10px rgba(64, 224, 208, 0.2);
+    }
+
+    #generateButton:hover {
+        background-color: #36c2b5; /* Updated hover color */
+        transform: translateY(-2px);
+    }
+
+    #generateButton:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(64, 224, 208, 0.3);
+    }
+
+    /* Message Area Styling */
+    #messageArea {
+        color: #ef4444;
+        font-size: 14px;
+        text-align: center;
+        padding-top: 0;
+        margin-top: 0;
+        min-height: 20px;
+    }
+
+    /* Wrapper for the map and overlay to control overall dimensions and positioning */
+    #mapContainerWrapper {
+        position: relative; /* Essential for absolute positioning of overlay */
+        /* Width and height will be set dynamically by JavaScript */
+        overflow: auto; /* auto allows scrolling if content overflows */
+        margin: 0px auto; /* Adjusted from 20px */
+        border: 0px solid #ccc; /* Adjusted from 1px */
+    }
+
+    #mapDisplayContainer {
+        font-size:0; /* Removes space between inline-block images */
+        white-space: nowrap; /* Prevents horizontal wrapping of image rows */
+    }
+
+    #mapDisplayContainer img {
+        width: 200px; /* Each tile is 200px wide */
+        height: 200px; /* Each tile is 200px tall */
+        vertical-align: top; /* Removes extra space below images */
+    }
+
+    /* Invisible overlay to capture key clicks */
+    #mapOverlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10; /* Ensures it's on top of the images */
+        background-color: transparent; /* Makes it invisible */
+        cursor: default; /* Default cursor (arrow) - will change on hover over clickable areas */
+    }
+
+    /* Tooltip (dynamic grid ref) Styling */
+    #osGridTooltip {
+        position: fixed; /* Position relative to the viewport */
+        display: none; /* Hidden by default */
+        background-color: rgba(217, 233, 247, 0.67);
+        color: black;
+        padding: 4px 6px;
+        border-radius: 3px;
+        font-family: 'Inter', monospace;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 1000; /* Ensure it's on top of everything */
+        pointer-events: none; /* Important: Allows mouse events to pass through to elements beneath */
+        white-space: nowrap; /* Prevent text wrapping */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+        #controlsContainer {
+            padding: 15px;
+            margin: 10px;
+        }
+        .input-field {
+            width: 70px;
+            font-size: 16px;
+        }
+        #controlsContainer td:first-child {
+            padding-right: 10px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div id="controlsContainer">
+    <table>
+        <tr>
+            <td><label for="inputXX">OS 100km square:</label></td>
+            <td><input type="text" id="inputXX" class="input-field" list="xxDatalist"><datalist id="xxDatalist"></datalist></td>
+        </tr>
+        <tr>
+            <td><label for="inputZZ">OS 2-digit 10km reference:</label></td>
+            <td><input type="text" id="inputZZ" class="input-field" maxlength="2"></td>
+        </tr>
+        <tr hidden> <!-- Added 'hidden' attribute here -->
+            <td><label for="inputYY">5km grid quadrant:</label></td>
+            <td><input type="text" id="inputYY" class="input-field" list="yyDatalist" value="SW"><datalist id="yyDatalist"></datalist></td>
+        </tr>
+        <tr>
+            <td><label for="inputWKM">Map Width (km):</label></td> <!-- try 10 (basic unit) and 38 (fits 1920 screen at 25%) -->
+            <td><input type="number" id="inputWKM" class="input-field" value="10" min="1" max="100"></td>
+        </tr>
+        <tr>
+            <td><label for="inputHKM">Map Height (km):</label></td> <!-- try 10 (basic unit) or 16 (10×16 is a good A3 print) or 24 (fits 1200 screen at 25%) -->
+            <td><input type="number" id="inputHKM" class="input-field" value="10" min="1" max="100"></td>
+        </tr>
+        <tr>
+            <td colspan="2" class="button-row-cell"><button id="generateButton">Generate Map</button></td>
+        </tr>
+        <tr>
+            <td colspan="2" class="message-row-cell"><div id="messageArea"></div></td>
+        </tr>
+    </table>
+</div>
+
+<!-- Wrapper for the map and overlay -->
+<div id="mapContainerWrapper">
+    <div id="mapDisplayContainer">
+        <!-- Images will be dynamically loaded here -->
+    </div>
+    <div id="mapOverlay"></div>
+</div>
+
+<!-- Tooltip for displaying OS Grid Reference -->
+<div id="osGridTooltip"></div>
+
+<script>
+    /**
+     * IIFE is a "Immediately Invoked Function Expression"
+     * It creates a private scope for all the variables and constants,
+     * ensuring they are only declared once,
+     * even if the script is re-executed by the environment.
+     */
+    (function() { // Start of IIFE
+    // Fixed constants for tile size and tiles per kilometer
+    const TILE_SIZE_PX = 200; // Each map tile is 200px x 200px
+    const TILES_PER_KM = 1;   // 1km tiles, so 1 tile per kilometer
+    const METERS_PER_PIXEL = 5; // 1000m / 200px = 5 meters per pixel
+
+    // Global variables to store current map dimensions and coordinates
+    let MAP_WIDTH_TILES;
+    let MAP_HEIGHT_TILES;
+    let MAP_WIDTH_PX;
+    let MAP_HEIGHT_PX;
+
+    let currentMapEasting100m;
+    let currentMapNorthing100m;
+
+    // Get references to HTML elements
+    const inputXX = document.getElementById('inputXX');
+    const inputZZ = document.getElementById('inputZZ');
+    const inputYY = document.getElementById('inputYY');
+    const inputWKM = document.getElementById('inputWKM'); // New W_KM input
+    const inputHKM = document.getElementById('inputHKM'); // New H_KM input
+    const generateButton = document.getElementById('generateButton');
+    const controlsContainer = document.getElementById('controlsContainer');
+    const mapDisplayContainer = document.getElementById('mapDisplayContainer');
+    const mapOverlay = document.getElementById('mapOverlay');
+    const messageArea = document.getElementById('messageArea');
+    const xxDatalist = document.getElementById('xxDatalist');
+    const yyDatalist = document.getElementById('yyDatalist');
+    const mapContainerWrapper = document.getElementById('mapContainerWrapper'); // Get wrapper reference
+    const osGridTooltip = document.getElementById('osGridTooltip'); // New tooltip element
+
+    // Define options for XX and YY dropdowns
+    const xxOptions = ["HO", "HP", "HT", "HU", "HW", "HX", "HY", "HZ", "NA", "NB", "NC", "ND", "NE", "NF", "NG", "NH", "NJ", "NK", "NL", "NM", "NN", "NO", "NP", "NR", "NS", "NT", "NU", "NW", "NX", "NY", "NZ", "OV", "SC", "SD", "SE", "SH", "SJ", "SK", "SM", "SN", "SO", "SP", "SR", "SS", "ST", "SU", "SV", "SW", "SX", "SY", "SZ", "TA", "TF", "TG", "TL", "TM", "TQ", "TR", "TV"];
+    const yyOptions = ["NW", "NE", "SW", "SE"];
+
+    // Lookup table for XX codes to their ABSOLUTE Easting and Northing origins in 100m units.
+    const xxTo100kmCoords = {
+        "SV": [0, 0],     "SW": [1000, 0],  "SX": [2000, 0],  "SY": [3000, 0],  "SZ": [4000, 0],  "TV": [5000, 0],
+        "SR": [1000, 1000], "SS": [2000, 1000], "ST": [3000, 1000], "SU": [4000, 1000], "TQ": [5000, 1000], "TR": [6000, 1000],
+        "SM": [1000, 2000], "SN": [2000, 2000], "SO": [3000, 2000], "SP": [4000, 2000], "TL": [5000, 2000], "TM": [6000, 2000],
+        "SH": [2000, 3000], "SJ": [3000, 3000], "SK": [4000, 3000], "TF": [5000, 3000], "TG": [6000, 3000],
+        "SC": [2000, 4000], "SD": [3000, 4000], "SE": [4000, 4000], "TA": [5000, 4000],
+        "NW": [1000, 5000], "NX": [2000, 5000], "NY": [3000, 5000], "NZ": [4000, 5000], "OV": [5000, 5000],
+        "NR": [1000, 6000], "NS": [2000, 6000], "NT": [3000, 6000], "NU": [4000, 6000],
+        "NL": [0, 7000], "NM": [1000, 7000], "NN": [2000, 7000], "NO": [3000, 7000], "NP": [4000, 7000],
+        "NF": [0, 8000], "NG": [1000, 8000], "NH": [2000, 8000], "NJ": [3000, 8000], "NK": [4000, 8000],
+        "NA": [0, 9000], "NB": [1000, 9000], "NC": [2000, 9000], "ND": [3000, 9000], "NE": [4000, 9000],
+        "HW": [1000, 10000], "HX": [2000, 10000], "HY": [3000, 10000], "HZ": [4000, 10000],
+        "HT": [3000, 11000], "HU": [4000, 11000],
+        "HO": [3000, 12000], "HP": [4000, 12000],
+    };
+
+    // Reverse lookup for converting 100km coordinates back to XX codes
+    const coordsToXX = {};
+    for (const xxCode in xxTo100kmCoords) {
+        const coords = xxTo100kmCoords[xxCode];
+        coordsToXX[`${coords[0]},${coords[1]}`] = xxCode;
+    }
+
+    /**
+     * Populates a datalist element with given options.
+     * @param {HTMLElement} datalistElement - The datalist element to populate.
+     * @param {string[]} optionsArray - An array of string options.
+     */
+    function populateDatalist(datalistElement, optionsArray) {
+        optionsArray.forEach(optionText => {
+            const option = document.createElement('option');
+            option.value = optionText;
+            datalistElement.appendChild(option);
+        });
+    }
+
+    // Populate the XX and YY datalists on load
+    populateDatalist(xxDatalist, xxOptions);
+    populateDatalist(yyDatalist, yyOptions);
+
+    /**
+     * Displays a message to the user.
+     * @param {string} message - The message to display.
+     */
+    function showMessage(message) {
+        messageArea.textContent = message;
+    }
+
+    /**
+     * Clears the message area.
+     */
+    function clearMessage() {
+        messageArea.textContent = '';
+    }
+
+    /**
+     * Converts a YY quadrant code to its 5km Easting and Northing offsets (0 or 5000 meters).
+     * @param {string} yyCode - The YY quadrant code (NW, NE, SW, SE).
+     * @returns {{eastingOffset: number, northingOffset: number}} - Object with 5km offsets in meters.
+     */
+    function yyTo5kmOffsets(yyCode) {
+        switch (yyCode) {
+            case 'SW': return { eastingOffset: 0, northingOffset: 0 };
+            case 'SE': return { eastingOffset: 5000, northingOffset: 0 };
+            case 'NW': return { eastingOffset: 0, northingOffset: 5000 };
+            case 'NE': return { eastingOffset: 5000, northingOffset: 5000 };
+            default: return { eastingOffset: 0, northingOffset: 0 }; // Should not happen with validation
+        }
+    }
+
+    /**
+     * Converts 5km Easting and Northing offsets (0 or 5000 meters, in 100m units) back to a YY quadrant code.
+     * @param {number} eastingOffset100m - 5km Easting offset in 100m units (0 or 50).
+     * @param {number} northingOffset100m - 5km Northing offset in 100m units (0 or 50).
+     * @returns {string} - The YY quadrant code.
+     */
+    function offsetsToYY(eastingOffset100m, northingOffset100m) {
+        if (eastingOffset100m === 0 && northingOffset100m === 0) return 'SW';
+        if (eastingOffset100m === 50 && northingOffset100m === 0) return 'SE';
+        if (eastingOffset100m === 0 && northingOffset100m === 50) return 'NW';
+        if (eastingOffset100m === 50 && northingOffset100m === 50) return 'NE';
+        return 'SW'; // Fallback - should not be reached with valid inputs
+    }
+
+    /**
+     * Converts StreetMap XXZZYY code (origin of a 5km square) to absolute Easting/Northing in 100m units.
+     * This represents the bottom-left corner of the 5km x 5km square.
+     * @param {string} xx - The XX code.
+     * @param {string} zz - The ZZ code.
+     * @param {string} yy - The YY code.
+     * @returns {{easting: number, northing: number}} - Absolute coordinates in 100m units.
+     */
+    function getAbsolute5kmSquareOrigin(xx, zz, yy) {
+        const [xxAbsoluteEasting100m, xxAbsoluteNorthing100m] = xxTo100kmCoords[xx.toUpperCase().trim()];
+
+        const zzEasting10km = parseInt(zz.trim()[0], 10);
+        const zzNorthing10km = parseInt(zz.trim()[1], 10);
+        const zzEasting100m = zzEasting10km * 100; // 10km = 100 * 100m units
+        const zzNorthing100m = zzNorthing10km * 100; // 10km = 100 * 100m units
+
+        // For 1:50000, the YY offset is now dynamically calculated based on the input YY
+        // This is crucial for setting the *initial* map origin correctly if the user inputs a non-SW YY.
+        const { eastingOffset: yyEasting5kmOffsetMeters, northingOffset: yyNorthing5kmOffsetMeters } = yyTo5kmOffsets(yy.toUpperCase().trim());
+        const yyEasting100m = yyEasting5kmOffsetMeters / 100; // 5km = 5000m = 50 * 100m units
+        const yyNorthing100m = yyNorthing5kmOffsetMeters / 100; // 5km = 5000m = 50 * 100m units
+
+        const absoluteEasting100m = xxAbsoluteEasting100m + zzEasting100m + yyEasting100m;
+        const absoluteNorthing100m = xxAbsoluteNorthing100m + zzNorthing100m + yyNorthing100m;
+
+        return { easting: absoluteEasting100m, northing: absoluteNorthing100m };
+    }
+
+    /**
+     * Converts absolute Easting and Northing (in 100m units) to StreetMap XXZZYY code components
+     * and the x_tile, y_tile (00, 20, 02...88) for the 1km tile within its 10km square.
+     * This function handles all grid boundary crossings (100km, 10km, 5km, and 1km tile boundaries).
+     * This is specifically for 1:50000 maps.
+     * @param {number} easting100m - Absolute Easting in 100m units for the 1km tile origin.
+     * @param {number} northing100m - Absolute Northing in 100m units for the 1km tile origin.
+     * @returns {{xx: string, zz: string, yy: string, x_tile: number, y_tile: number}|null} - StreetMap code components, or null if out of bounds.
+     */
+    function getStreetMapTileCode(easting100m, northing100m) {
+        // 1. Determine XX (100km square)
+        const xxOriginEasting100m = Math.floor(easting100m / 1000) * 1000;
+        const xxOriginNorthing100m = Math.floor(northing100m / 1000) * 1000;
+
+        let xx = coordsToXX[`${xxOriginEasting100m},${xxOriginNorthing100m}`];
+        if (!xx) {
+            showMessage('Coordinates are outside the defined British National Grid land area (XX square not found).');
+            return null;
+        }
+
+        // Coordinates relative to the current 100km XX square's origin (in 100m units)
+        const relativeEasting100m_in100kmSquare = easting100m - xxOriginEasting100m;
+        const relativeNorthing100m_in100kmSquare = northing100m - xxOriginNorthing100m;
+
+        // 2. Determine ZZ (10km square within 100km square)
+        const zzEasting10km = Math.floor(relativeEasting100m_in100kmSquare / 100); // 10000m / 100m = 100 units. So 100m units / 100 = 10km unit
+        const zzNorthing10km = Math.floor(relativeNorthing100m_in100kmSquare / 100);
+        const zz = `${zzEasting10km}${zzNorthing10km}`;
+
+        // 3. Determine YY (5km quadrant within 10km square) - DYNAMICALLY for 1:50000 tiles in URL
+        // This is based on the 1km tile's position within the 10km square.
+        // The 5km quadrant boundaries are at 50 units (5000m) in 100m units.
+        const currentTileEastingIn10kmSquare100m = relativeEasting100m_in100kmSquare % 100;
+        const currentTileNorthingIn10kmSquare100m = relativeNorthing100m_in100kmSquare % 100;
+
+        const yyEastingOffset100m = (currentTileEastingIn10kmSquare100m >= 50) ? 50 : 0;
+        const yyNorthingOffset100m = (currentTileNorthingIn10kmSquare100m >= 50) ? 50 : 0;
+        const yy = offsetsToYY(yyEastingOffset100m, yyNorthingOffset100m);
+
+        // 4. Determine x_tile and y_tile (00, 20, 02, ..., 88) for the 1km tile within its 5km square
+        // These are based on the 1km position within the *current 5km quadrant*, multiplied by 2.
+        const eastingOffsetWithin5kmQuadrant100m = currentTileEastingIn10kmSquare100m % 50; // Remainder after 5km unit
+        const northingOffsetWithin5kmQuadrant100m = currentTileNorthingIn10kmSquare100m % 50; // Remainder after 5km unit
+
+        // Convert 100m offsets within the 5km quadrant to 1km steps (divide by 10)
+        // Then multiply by 2 for StreetMap's 1:50000 naming convention (00, 20, 02, etc.)
+        const x_tile = Math.floor(eastingOffsetWithin5kmQuadrant100m / 10) * 2;
+        const y_tile = Math.floor(northingOffsetWithin5kmQuadrant100m / 10) * 2;
+
+        return { xx, zz, yy, x_tile, y_tile };
+    }
+
+    /**
+     * Converts absolute Easting and Northing (in meters) to an OS grid reference string (XXINTRESOURCE XXXX) for tooltip use.
+     * @param {number} eastingMeters - Absolute Easting in meters.
+     * @param {number} northingMeters - Absolute Northing in meters.
+     * @returns {string} - OS grid reference string, or "Out of Bounds" if XX code not found.
+     */
+    function getOsGridReference(eastingMeters, northingMeters) {
+        // Determine 100km square (XX)
+        const xxOriginEasting100mForLookup = Math.floor(eastingMeters / 100000) * 1000;
+        const xxOriginNorthing100mForLookup = Math.floor(northingMeters / 100000) * 1000;
+
+        let xx = coordsToXX[`${xxOriginEasting100mForLookup},${xxOriginNorthing100mForLookup}`];
+        if (!xx) {
+            return "Out of Bounds";
+        }
+
+        // Calculate 3-digit Easting (YYY) and Northing (XXX) relative to the 100km square origin
+        const eastingWithin100km = eastingMeters % 100000; // Easting within the 100km square in meters
+        const northingWithin100km = northingMeters % 100000; // Northing within the 100km square in meters
+
+        // Convert to 100m units and pad with leading zeros to 3 digits
+        const YYY = String(Math.floor(eastingWithin100km / 100)).padStart(3, '0');
+				const XXX = String(Math.floor(northingWithin100km / 100)).padStart(3, '0');
+
+        return `${xx} ${YYY} ${XXX}`;
+    }
+
+    /**
+     * Saves the current input values to localStorage (i.e. remember user's last input).
+     */
+    function saveInputs() {
+        localStorage.setItem('mapXX', inputXX.value);
+        localStorage.setItem('mapZZ', inputZZ.value);
+        localStorage.setItem('mapYY', inputYY.value); // Still save YY, even if fixed to SW
+        localStorage.setItem('mapWKM', inputWKM.value);
+        localStorage.setItem('mapHKM', inputHKM.value);
+    }
+
+    /**
+     * Loads saved input values from localStorage.
+     */
+    function loadInputs() {
+        const savedXX = localStorage.getItem('mapXX');
+        const savedZZ = localStorage.getItem('mapZZ');
+        const savedYY = localStorage.getItem('mapYY');
+        const savedWKM = localStorage.getItem('mapWKM');
+        const savedHKM = localStorage.getItem('mapHKM');
+
+        if (savedXX) inputXX.value = savedXX;
+        if (savedZZ) inputZZ.value = savedZZ;
+        if (savedYY) inputYY.value = savedYY;
+        if (savedWKM) inputWKM.value = savedWKM;
+        if (savedHKM) inputHKM.value = savedHKM;
+    }
+
+    /**
+     * Handles the generation of the map.
+     * @param {number} startEasting100m - Absolute Easting in 100m units for the bottom-left of the displayed map area.
+     * @param {number} startNorthing100m - Absolute Northing in 100m units for the bottom-left of the displayed map area.
+     * @param {number} wKm - The desired width of the map in kilometers.
+     * @param {number} hKm - The desired height of the map in kilometers.
+     */
+    function generateMap(startEasting100m, startNorthing100m, wKm, hKm) {
+        clearMessage(); // Clear any previous messages
+
+        // Update global map dimension variables based on current generation
+        MAP_WIDTH_TILES = wKm * TILES_PER_KM; // TILES_PER_KM is 1, so this is just wKm
+        MAP_HEIGHT_TILES = hKm * TILES_PER_KM; // TILES_PER_KM is 1, so this is just hKm
+        MAP_WIDTH_PX = MAP_WIDTH_TILES * TILE_SIZE_PX;
+        MAP_HEIGHT_PX = MAP_HEIGHT_TILES * TILE_SIZE_PX;
+
+        // Set the dynamic dimensions for the map container wrapper
+        mapContainerWrapper.style.width = `${MAP_WIDTH_PX}px`;
+        mapContainerWrapper.style.height = `${MAP_HEIGHT_PX}px`;
+
+        let imgHtml = '';
+        const loc2Val = '01'; // loc2 is consistently '01' for all images
+        const mapType = 'O'; // For 1:50000 maps
+
+        // Get the StreetMap code for the very first (bottom-left) tile of the map.
+        // This is used to update the hidden input fields for navigation.
+        const baseTileCode = getStreetMapTileCode(startEasting100m, startNorthing100m);
+        if (!baseTileCode) {
+            // Message is already set by getStreetMapTileCode
+            controlsContainer.style.display = 'flex'; // Show controls again on error
+            mapDisplayContainer.innerHTML = '';
+            mapOverlay.style.display = 'none'; // Hide overlay if map not generated
+            return;
+        }
+
+        // Update input fields with the base XXZZYY of the currently displayed 5km square
+        inputXX.value = baseTileCode.xx;
+        inputZZ.value = baseTileCode.zz;
+        // inputYY.value = baseTileCode.yy; // Keep inputYY fixed to SW as per instruction
+        saveInputs(); // Save inputs after successful generation
+
+        // Loop to generate rows (y-axis for xy tile) from top down
+        for (let row = MAP_HEIGHT_TILES - 1; row >= 0; row--) {
+            // Loop to generate columns (x-axis for xy tile) from left to right
+            for (let col = 0; col < MAP_WIDTH_TILES; col++) {
+                // Calculate absolute coordinates for the current 1km tile in the grid
+                // Each tile is 1km (10 * 100m units)
+                const currentTileEasting100m = startEasting100m + (col * 10);
+                const currentTileNorthing100m = startNorthing100m + (row * 10);
+
+                // Get the StreetMap code components for this specific 1km tile
+                const tileParts = getStreetMapTileCode(currentTileEasting100m, currentTileNorthing100m);
+
+                if (tileParts) {
+                    // The 'xy' part (imageNumber) directly represents the 1km tile index (e.g., 00, 20, 02, 22...)
+                    const imageNumber = `${tileParts.x_tile}${tileParts.y_tile}`;
+                    const imageUrl = `https://www.streetmap.co.uk/img?image=${tileParts.xx}${tileParts.zz}${tileParts.yy}${imageNumber}.gif&loc2=${loc2Val}&type=${mapType}&road=Y`;
+                    imgHtml += `<img src="${imageUrl}" alt="Map Tile ${tileParts.xx}${tileParts.zz}${tileParts.yy}${imageNumber}" onerror="this.onerror=null; this.src='https://placehold.co/200x200/ff0000/ffffff?text=Error';">`;
+                } else {
+                    // If a tile is out of bounds or sea, display a blank/placeholder (optional)
+                    imgHtml += `<img src="https://placehold.co/200x200/cccccc/ffffff?text=N/A" alt="Placeholder Tile">`;
+                }
+            }
+            if (row > 0) {
+                imgHtml += '<br>';
+            }
+        }
+
+        // Update the map display container
+        mapDisplayContainer.innerHTML = imgHtml;
+
+        // Hide controls and show navigation (now the overlay)
+        controlsContainer.style.display = 'none';
+        mapOverlay.style.display = 'block'; // Show the overlay
+    }
+
+    /**
+     * Determines if the mouse position is within a clickable margin area.
+     * @param {number} offsetX - Mouse X position relative to the overlay.
+     * @param {number} offsetY - Mouse Y position relative to the overlay.
+     * @param {number} mapWidth - Width of the map overlay.
+     * @param {number} mapHeight - Height of the map overlay.
+     * @param {number} marginSize - Size of the clickable margin.
+     * @returns {boolean} - True if within a clickable area, false otherwise.
+     */
+    function isClickableArea(offsetX, offsetY, mapWidth, mapHeight, marginSize) {
+        // Check corners first
+        if ((offsetX < marginSize && offsetY < marginSize) || // Top-Left
+            (offsetX > (mapWidth - marginSize) && offsetY < marginSize) || // Top-Right
+            (offsetX < marginSize && offsetY > (mapHeight - marginSize)) || // Bottom-Left
+            (offsetX > (mapWidth - marginSize) && offsetY > (mapHeight - marginSize))) { // Bottom-Right
+            return true;
+        }
+        // Then check edges (excluding corners)
+        if (offsetY < marginSize || offsetY > (mapHeight - marginSize) || // Top/Bottom edges
+            offsetX < marginSize || offsetX > (mapWidth - marginSize)) { // Left/Right edges
+            return true;
+        }
+        return false;
+    }
+
+    let clickTimer = null;
+    let preventSingleClick = false;
+
+    /**
+     * Handles single clicks on the map overlay to trigger 1km navigation shifts.
+     * This function is debounced to allow for double-click detection.
+     * @param {MouseEvent} event - The click event object.
+     */
+    function handleMapClick(event) {
+        // Clear any existing timer to prevent multiple single clicks from firing
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+
+        // Set a flag to prevent single click logic if a double click occurs shortly after
+        preventSingleClick = false;
+
+        clickTimer = setTimeout(() => {
+            if (preventSingleClick) {
+                return; // A double click was detected, so prevent this single click
+            }
+
+            const rect = mapOverlay.getBoundingClientRect();
+            const offsetX = event.clientX - rect.left;
+            const offsetY = event.clientY - rect.top;
+
+            const mapWidth = rect.width;
+            const mapHeight = rect.height;
+            const marginSize = 200;
+
+            let shiftEasting = 0;
+            let shiftNorthing = 0;
+
+            // Check for diagonal shifts first (corners)
+            if (offsetX < marginSize && offsetY < marginSize) { // Top-Left
+                shiftEasting = -10; // 1km West (10 * 100m units)
+                shiftNorthing = +10; // 1km North (10 * 100m units)
+            } else if (offsetX > (mapWidth - marginSize) && offsetY < marginSize) { // Top-Right
+                shiftEasting = +10; // 1km East
+                shiftNorthing = +10; // 1km North
+            } else if (offsetX < marginSize && offsetY > (mapHeight - marginSize)) { // Bottom-Left
+                shiftEasting = -10; // 1km West
+                shiftNorthing = -10; // 1km South
+            } else if (offsetX > (mapWidth - marginSize) && offsetY > (mapHeight - marginSize)) { // Bottom-Right
+                shiftEasting = +10; // 1km East
+                shiftNorthing = -10; // 1km South
+            }
+            // Then check for cardinal shifts (edges, excluding corners already handled)
+            else if (offsetY < marginSize) { // Top edge
+                shiftNorthing = +10; // 1km North
+            } else if (offsetY > (mapHeight - marginSize)) { // Bottom edge
+                shiftNorthing = -10; // 1km South
+            } else if (offsetX < marginSize) { // Left edge
+                shiftEasting = -10; // 1km West
+            } else if (offsetX > (mapWidth - marginSize)) { // Right edge
+                shiftEasting = +10; // 1km East
+            }
+
+            // Only generate map if a shift was determined
+            if (shiftEasting !== 0 || shiftNorthing !== 0) {
+                currentMapEasting100m += shiftEasting;
+                currentMapNorthing100m += shiftNorthing;
+                // Pass current W_KM and H_KM for next generation
+                generateMap(currentMapEasting100m, currentMapNorthing100m, MAP_WIDTH_TILES / TILES_PER_KM, MAP_HEIGHT_TILES / TILES_PER_KM);
+            }
+        }, 250); // 250ms delay to distinguish from double-click
+    }
+
+    /**
+     * Handles double clicks on the map overlay to trigger W_KM/H_KM navigation shifts.
+     * @param {MouseEvent} event - The dblclick event object.
+     */
+    function handleMapDoubleClick(event) {
+        clearTimeout(clickTimer); // Clear the single-click timer immediately
+        preventSingleClick = true; // Prevent the pending single click from firing
+
+        const rect = mapOverlay.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+
+        const mapWidth = rect.width;
+        const mapHeight = rect.height;
+        const marginSize = 200;
+
+        let shiftEasting = 0;
+        let shiftNorthing = 0;
+
+        // Calculate shift magnitudes based on the current map's dimensions
+        // Since TILES_PER_KM is now 1, (MAP_WIDTH_TILES / TILES_PER_KM) is simply MAP_WIDTH_TILES (which is W_KM)
+        const largeShiftEasting = (MAP_WIDTH_TILES / TILES_PER_KM) * 10; // Current map width in 100m units
+        const largeShiftNorthing = (MAP_HEIGHT_TILES / TILES_PER_KM) * 10; // Current map height in 100m units
+
+        // Check for diagonal shifts first (corners)
+        if (offsetX < marginSize && offsetY < marginSize) { // Top-Left
+            shiftEasting = -largeShiftEasting; // West
+            shiftNorthing = +largeShiftNorthing; // North
+        } else if (offsetX > (mapWidth - marginSize) && offsetY < marginSize) { // Top-Right
+            shiftEasting = +largeShiftEasting; // East
+            shiftNorthing = +largeShiftNorthing; // North
+        } else if (offsetX < marginSize && offsetY > (mapHeight - marginSize)) { // Bottom-Left
+            shiftEasting = -largeShiftEasting; // West
+            shiftNorthing = -largeShiftNorthing; // South
+        } else if (offsetX > (mapWidth - marginSize) && offsetY > (mapHeight - marginSize)) { // Bottom-Right
+            shiftEasting = +largeShiftEasting; // East
+            shiftNorthing = -largeShiftNorthing; // South
+        }
+        // Then check for cardinal shifts (edges, excluding corners already handled)
+        else if (offsetY < marginSize) { // Top edge
+            shiftNorthing = +largeShiftNorthing; // North
+        } else if (offsetY > (mapHeight - marginSize)) { // Bottom edge
+            shiftNorthing = -largeShiftNorthing; // South
+        } else if (offsetX < marginSize) { // Left edge
+            shiftEasting = -largeShiftEasting; // West
+        } else if (offsetX > (mapWidth - marginSize)) { // Right edge
+            shiftEasting = +largeShiftEasting; // East
+        }
+
+        // Only generate map if a shift was determined
+        if (shiftEasting !== 0 || shiftNorthing !== 0) {
+            currentMapEasting100m += shiftEasting;
+            currentMapNorthing100m += shiftNorthing;
+            // Pass current W_KM and H_KM for next generation
+            generateMap(currentMapEasting100m, currentMapNorthing100m, MAP_WIDTH_TILES / TILES_PER_KM, MAP_HEIGHT_TILES / TILES_PER_KM);
+        }
+    }
+
+
+    /**
+     * Handles mouse movement over the map overlay to change cursor and display tooltip.
+     * @param {MouseEvent} event - The mousemove event object.
+     */
+    function handleMouseMove(event) {
+        const rect = mapOverlay.getBoundingClientRect();
+        const offsetX = event.clientX - rect.left;
+        const offsetY = event.clientY - rect.top;
+        const mapWidth = rect.width;
+        const mapHeight = rect.height;
+        const marginSize = 200; // Must match the marginSize in handleMapClick
+
+        // Update cursor based on clickable area
+        if (isClickableArea(offsetX, offsetY, mapWidth, mapHeight, marginSize)) {
+            mapOverlay.style.cursor = 'pointer';
+        } else {
+            mapOverlay.style.cursor = 'default';
+        }
+
+        // Calculate absolute Easting and Northing in meters for the tooltip
+        // Easting increases to the right, Northing increases upwards
+        const absoluteEastingMeters = (currentMapEasting100m * 100) + (offsetX * METERS_PER_PIXEL);
+        const absoluteNorthingMeters = (currentMapNorthing100m * 100) + (MAP_HEIGHT_PX - offsetY) * METERS_PER_PIXEL;
+
+        // Get the OS grid reference
+        const osGridRef = getOsGridReference(absoluteEastingMeters, absoluteNorthingMeters);
+
+        // Update and position the tooltip
+        osGridTooltip.textContent = osGridRef;
+        osGridTooltip.style.left = (event.clientX + 5) + 'px'; // Offset px horiz
+        osGridTooltip.style.top = (event.clientY - 15) + 'px'; // Offset px vert
+        osGridTooltip.style.display = 'block'; // Show the tooltip
+    }
+
+    /**
+     * Handles mouse leaving the map overlay to reset cursor and hide tooltip.
+     */
+    function handleMouseLeave() {
+        mapOverlay.style.cursor = 'default';
+        osGridTooltip.style.display = 'none'; // Hide the tooltip
+    }
+
+
+    // Event Listeners for initial generation
+    generateButton.addEventListener('click', () => {
+        // Get initial XXZZYY from input fields
+        const initialXX = inputXX.value;
+        const initialZZ = inputZZ.value;
+        const initialYY = inputYY.value; // Will be 'SW' from readonly input
+        const wKm = parseInt(inputWKM.value, 10); // Get W_KM from input
+        const hKm = parseInt(inputHKM.value, 10); // Get H_KM from input
+
+        // Basic validation before attempting conversion
+        if (!xxOptions.includes(initialXX.toUpperCase().trim()) ||
+            !/^\d{2}$/.test(initialZZ.trim()) ||
+            parseInt(initialZZ.trim(), 10) < 0 || parseInt(initialZZ.trim(), 10) > 99 ||
+            !yyOptions.includes(initialYY.toUpperCase().trim())) { // yyOptions still used for validation
+            showMessage('Please enter valid OS grid references (XX, ZZ). YY is fixed to SW.');
+            return;
+        }
+        if (isNaN(wKm) || wKm < 1 || wKm > 100 || isNaN(hKm) || hKm < 1 || hKm > 100) {
+            showMessage('Map Width and Height must be numbers between 1 and 100.');
+            return;
+        }
+
+        // Convert initial XXZZYY to absolute 100m coordinates for the 5km square origin
+        const initialAbsolute = getAbsolute5kmSquareOrigin(initialXX, initialZZ, initialYY);
+
+        // Store the initial absolute origin as the current map origin
+        currentMapEasting100m = initialAbsolute.easting;
+        currentMapNorthing100m = initialAbsolute.northing;
+
+        // Pass W_KM and H_KM to generateMap
+        generateMap(currentMapEasting100m, currentMapNorthing100m, wKm, hKm);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            // Only trigger generateMap if controlsContainer is visible (i.e., before map is generated)
+            if (controlsContainer.style.display !== 'none' &&
+                (event.target === inputXX || event.target === inputZZ || event.target === inputYY ||
+                 event.target === inputWKM || event.target === inputHKM || event.target === generateButton)) {
+
+                generateButton.click(); // Simulate click on generate button
+            }
+        }
+    });
+
+    // Set initial display state and populate datalists when the page loads
+    window.addEventListener('load', () => {
+        loadInputs(); // Load inputs
+        // Always show controls initially
+        controlsContainer.style.display = 'flex'; /* Use flex to center the container */
+        mapOverlay.style.display = 'none'; // Hide overlay initially
+        mapDisplayContainer.innerHTML = ''; // Ensure map area is clear
+    });
+
+    // Attach event listeners to the map overlay
+    mapOverlay.addEventListener('click', handleMapClick);
+    mapOverlay.addEventListener('dblclick', handleMapDoubleClick); // New double-click listener
+    mapOverlay.addEventListener('mousemove', handleMouseMove);
+    mapOverlay.addEventListener('mouseleave', handleMouseLeave);
+
+    })(); // End of IIFE
+</script>
+
+</body>
+</html>
